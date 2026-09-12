@@ -1,8 +1,10 @@
 # Source releases
 
-A pushed Git tag creates a release. The tag is its version (for example,
+Pushing a tag with three numeric parts, such as `2026.09.12` or `1.2.3`, creates
+a release. The tag is its version (for example,
 `2026.09.12`); [release.json](../release.json) **at the tagged commit** selects
-the Crystal source, shards, generator host and LLVM version. Any tag name works.
+the Crystal source, shards, generator host and LLVM version. Other tag names
+do not trigger publication.
 The `targets` list currently contains only Crystal 1.21.0. Later commits can
 replace it or add targets; versions are not repeated in the workflow.
 
@@ -24,8 +26,8 @@ checksums and attests them, and publishes `/releases/tag/2026.09.12` with the ti
 `2026.09.12 - Crystal 1.21.0` (or a comma-separated version list for several targets).
 The run shows the tag, individual jobs show their Crystal version, and the final
 job shows the release title. GitHub resolves the run name before reading files.
-Publication uses the existing tag; there is no manual dispatch, tag prefix or
-tag-name validation.
+Publication uses the existing tag. GitHub's tag filter selects the numeric format;
+there is no manual dispatch, tag prefix or separate validation step.
 
 Local generation produces an unpacked tree labelled `dev`; CI supplies the tag
 through `BOOTSTRAP_VERSION`. Tags containing filename separators are escaped in

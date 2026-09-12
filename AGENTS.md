@@ -19,8 +19,8 @@ crystal-stage1 + upstream source    -> final Crystal
   upstream reference under an identical recipe. Direct cross-version `n-1 -> n`
   equality is not required. Do not equate source-generation determinism with
   final compiler reproducibility or claim arbitrary upstream download hashes.
-- Any pushed Git tag names a release; its commit selects the Crystal targets in
-  `release.json`. Derive the CI matrix and release title from that list. Do not validate tag spelling or add a tag prefix. New
+- Three-part numeric Git tags name releases; their commits select Crystal targets in
+  `release.json`. Derive the CI matrix and release title from that list. Use the workflow tag filter without a second validator or tag prefix. New
   releases may drop the older target. Prefer updating the small adapter over
   maintaining compatibility profiles or older targets without a purpose.
 - GitHub Actions builds are authoritative for released sources. Local generation
