@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   prepare:
-    name: Read Crystal targets
+    name: Configure build matrix
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.targets.outputs.matrix }}
@@ -55,7 +55,7 @@ jobs:
           sudo apt-get install -y "llvm-${LLVM_MAJOR}-dev" libgc-dev libpcre2-dev libutf8proc-dev pkg-config
       - name: Check release tools
         run: make check-release
-      - name: Generate sources twice and compare
+      - name: Verify deterministic source generation
         env:
           CRYSTAL_VERSION: ${{ matrix.crystal }}
           BOOTSTRAP_VERSION: ${{ github.ref_name }}
