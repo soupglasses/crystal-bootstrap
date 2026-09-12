@@ -23,16 +23,17 @@ help:
 	@echo 'make check-snapshot: compile and check locally generated snapshots without Crystal'
 	@echo 'make check-memory: run the bounded-heap runtime stress test'
 	@echo 'make check-compiler: compare real compiler components through split native snapshots'
-	@echo 'make inventory / attempt-compiler / attempt-lexer: measure coverage and current blockers'
+	@echo 'make inventory / attempt-compiler / attempt-lexer: inspect coverage and attempt strict translation'
 	@echo 'make stage0-snapshot SNAPSHOT=build/compiler-source: regenerate the full source snapshot'
 	@echo 'make stage0 SNAPSHOT=build/compiler-source: build stage0 using only native tools'
-	@echo 'make bootstrap: build stage0, stage1 and Crystal without an existing Crystal compiler'
-	@echo 'make check-bootstrap BOOTSTRAP_HOST=/path/to/crystal: compare the complete compiler chain'
+	@echo 'make bootstrap OUTPUT=build/generated/<version>: build the unpacked source tree with native tools'
+	@echo 'make check-bootstrap BOOTSTRAP_HOST=/path/to/crystal: audit the existing build/crystal-stage0'
+	@echo 'make check-release: check source replacement, packaging and build entry points'
 
 generator: $(GENERATOR)
 reference: $(REFERENCE)
 
-# Upstream internals are an explicit input; always rebuild this small prototype
+# Upstream internals are an explicit input; always rebuild the generator
 # driver when requested so changing CRYSTAL_SRC cannot reuse a stale adapter.
 .PHONY: FORCE
 $(GENERATOR): FORCE
@@ -89,7 +90,7 @@ stage0: build/llvm_ext.o
 	  --link-flags="$$($(LLVM_CONFIG) --ldflags --libs --system-libs) -lpcre2-8" -o build/crystal-stage0
 
 bootstrap:
-	$(MAKE) -C "$(OUTPUT)" CXX="$(CXX)" LLVM_CONFIG="$(LLVM_CONFIG)"
+	$(MAKE) -C "$(OUTPUT)" OUTPUT=build CXX="$(CXX)" LLVM_CONFIG="$(LLVM_CONFIG)"
 
 check-bootstrap:
 	LLVM_CONFIG="$(LLVM_CONFIG)" CRYSTAL_SRC="$(UPSTREAM)" $(PYTHON) tools/bootstrap.py \

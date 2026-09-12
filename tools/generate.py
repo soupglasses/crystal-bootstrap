@@ -162,7 +162,7 @@ def generate(args, config, target, work, output):
         staging.mkdir()
         shutil.move(work / 'first', staging / 'snapshot')
         shutil.move(upstream, staging / 'upstream')
-        shutil.copytree(ROOT / 'bootstrap/notices', staging / 'notices')
+        shutil.copytree(ROOT / 'notices', staging / 'notices')
         (staging / 'tools').mkdir()
         for name in ('build_snapshot.py', 'build_source.py'):
             shutil.copy2(ROOT / 'tools' / name, staging / 'tools' / name)

@@ -1,8 +1,7 @@
 # Lowering and readability contract
 
-Seed names the internal lowering conventions. The distributed format is readable
-C++11 source; there is no separate language parser or independently bootstrapped
-generator.
+Seed is the name used in the implementation for the C++ lowering and runtime
+ABI described here.
 
 ## Division of work
 
@@ -49,11 +48,12 @@ Functions containing explicit returns use rooted control transport so returns
 can cross cleanup and synchronous block lambdas. Functions without explicit
 returns use ordinary C++ returns. Break and next target their call and block,
 respectively; rescue catches only Crystal exception transport. Loop break and
-next have separate tags so cleanup runs before the loop resumes or exits. Forwarded blocks reuse the frontend's resolved proc and block metadata.
+next have separate tags so cleanup runs before the loop resumes or exits.
+Forwarded blocks reuse the frontend's resolved proc and block metadata.
 
-The native adapter boundary is intentionally smaller than Crystal's complete
-runtime. Differential tests establish the supported behavior; neither a matching
-method name nor compilable C++ establishes support for another overload.
+Adapter support is specific to resolved types and overloads. Use differential
+fixtures to verify each supported combination; matching a method name is not
+enough to select an adapter.
 
 ## Readable generated source
 
@@ -73,13 +73,9 @@ with identical source signatures receive deterministic variant suffixes.
 Adding an unused function may move source comments but must not change existing
 executable output.
 
-The examples contain explicit temporaries and control wrappers. Readability
-needs continued review as compiler coverage grows: deterministic output and
-source names alone do not make an entire compiler easy to audit.
-
-Large snapshots can partition function bodies into deterministic C++ units.
-See the [compiler workbench](compiler-translation.md) for publication, sequential
-builds, memory measurements, and current full-compiler blockers.
+Large snapshots partition function bodies into deterministic C++ units while
+keeping each function intact. See [compiler verification](compiler-translation.md)
+for native build behavior and diagnostics.
 
 ## Native layout queries
 

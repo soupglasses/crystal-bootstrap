@@ -14,6 +14,26 @@ from generate import publish
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_bootstrap_builds_inside_selected_source_tree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for destination in ('source', str(root / 'absolute-source')):
+                with self.subTest(destination=destination):
+                    source = root / destination
+                    source.mkdir()
+                    # Exercise recursive Make's variable inheritance without
+                    # needing a generated compiler or native dependencies.
+                    (source / 'Makefile').write_text(
+                        'OUTPUT ?= build\n'
+                        'all:\n'
+                        '\tmkdir -p "$(OUTPUT)"\n'
+                        '\ttouch "$(OUTPUT)/built"\n')
+                    subprocess.run([
+                        'make', '-f', str(ROOT / 'Makefile'), 'bootstrap',
+                        f'OUTPUT={destination}', f'PYTHON={sys.executable}',
+                    ], cwd=root, check=True, capture_output=True)
+                    self.assertTrue((source / 'build/built').is_file())
+
     def test_failed_replacement_preserves_previous_output(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

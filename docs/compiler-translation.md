@@ -1,78 +1,121 @@
-# Compiler translation workbench
+# Building and verifying the compiler
 
-The generator emits the configured upstream compiler directly from its typed
-program into readable C++11. Strict full snapshots compile and link into native
-stage0 binaries that build the upstream compiler. Stage1 builds a final Crystal
-whose SHA256 matches the controlled current-compiler builds. The direct older
-compiler comparison differs; see [reproducibility](reproducibility.md). The published
-[receipt](../bootstrap/verification.json) records the tested source and toolchain.
+Use the Makefile entry points. Set `CRYSTAL`, `CRYSTAL_SRC`, `LLVM_CONFIG` and
+`CXX` explicitly when their defaults select different inputs. Developer checks
+use a local upstream checkout with populated shards; the default source path is
+`../../crystal-lang/crystal`. They do not download dependencies.
 
-## Build and verify
+## Focused checks
+
+| Command | Coverage |
+| --- | --- |
+| `make check` | Differential fixtures: values, aliasing, dispatch, evaluation order, closures, cleanup, text and arithmetic. |
+| `make check-compiler` | Real compiler components, callbacks, collections, lexical state and whole-program startup. |
+| `make check-memory` | Standalone runtime stress under a bounded GC heap. |
+| `make regen` | Regenerate example snapshots under `build/examples`. |
+| `make check-snapshot` | Build and run those examples with native tools alone. |
+| `make check-release` | Generation replacement, archive determinism, shard symlinks and build entry points. |
+
+For a semantic change, start with the affected differential fixture. These
+checks compare stdout, stderr and exit status with upstream. Unhandled-error
+fixtures compare the exception message and status because native diagnostics
+omit Crystal's backtrace formatting.
+Compiler probes also compare independent generations, build with Crystal paths
+disabled, and verify that a corrupt snapshot cannot replace an existing binary.
+
+The compiler probes include Location, Token, lexer and parser workloads. Runtime
+probes schedule a fiber and wait for a subprocess; collection probes exercise
+array buffer movement and record copies. Lexical-state probes check shell status
+and regex captures. [Runtime](runtime.md#memory-validation) describes the
+allocation tests. These are regressions for the bootstrap workload, not a
+Crystal conformance suite.
+
+## Build an unpacked source tree
+
+After `make generate`, build the compiler chain without an installed Crystal:
 
 ```sh
-make bootstrap CXX=clang++
-make check-bootstrap BOOTSTRAP_HOST=/path/to/trusted-crystal
+make bootstrap OUTPUT=build/generated/1.21.0 CXX=clang++ LLVM_CONFIG=llvm-config-20
+./build/generated/1.21.0/build/crystal --version
 ```
 
-Set `CRYSTAL_SRC` and `LLVM_CONFIG` when their defaults do not select the intended
-source and libraries. `make bootstrap` needs no existing Crystal compiler.
-It compiles upstream's C++ LLVM
-bridge and links the snapshot against LLVM, Boehm GC, utf8proc and PCRE2.
+`OUTPUT` selects the unpacked tree to build. The command runs that tree's
+offline build driver, starting with fresh native objects and caches. All three
+compilers are written under its `build/` directory, and the final compiler
+enables upstream's full feature set. For distribution
+settings, see the [archive README](../packaging/source-README.md).
 
-The stage0 driver accepts source and output paths as positional arguments. It
-uses upstream `Crystal::Compiler`, with optional interpreter, XML, OpenSSL,
-compression and multithreading features disabled. Whole-program startup calls
-upstream `Crystal.main`, including runtime initialization and shutdown.
+## Develop a snapshot and audit stage0
 
-`tools/bootstrap.py --stage0 PATH` builds stage1 and the final compiler without
-a host compiler. Adding `--host PATH` also builds repeated trusted references
-and a trusted self-build. It keeps output/cache paths, flags, metadata and source
-inputs constant. Reference acceptance requires reproducible references and the
-final binary's SHA256 matching both trusted references. A source-only run reports
-`source_chain_built`; only a successful reference audit sets `stage0_verified`.
+For a generator change, translate into a fresh candidate directory using the
+selected local upstream source, then build it with native tools:
 
-The runner gives stage0 a 512 MiB stack limit, recorded in the report and
-configurable with `--stage0-stack-mib`. Unoptimized generated C++ uses large
-frames during recursive type inference; the full compiler exceeds a 64 MiB
-stack. This limit reserves address space, not an immediate 512 MiB allocation.
-Trusted builds and subsequent Crystal binaries retain their normal limits.
+```sh
+make stage0-snapshot SNAPSHOT=build/candidate CRYSTAL=/path/to/crystal \
+  CRYSTAL_SRC=/path/to/crystal-source LLVM_CONFIG=/path/to/llvm-config
+make stage0 SNAPSHOT=build/candidate CXX=clang++ \
+  CRYSTAL_SRC=/path/to/crystal-source LLVM_CONFIG=/path/to/llvm-config
+make check-bootstrap BOOTSTRAP_HOST=/path/to/trusted-crystal \
+  CRYSTAL_SRC=/path/to/crystal-source LLVM_CONFIG=/path/to/llvm-config
+```
 
-## Snapshot format
+`make stage0` writes the repository's `build/crystal-stage0`. `check-bootstrap`
+uses that binary without rebuilding it. The binary produced by
+`make bootstrap` is in the unpacked tree and must be selected explicitly when
+using the comparison harness below. Keep the candidate manifest and native
+binary hashes with the report to identify the build being checked.
 
-The generator finishes strict lowering before publishing a staging directory by
-rename. The manifest hashes every member. Shared declarations live in
-`program.hpp`; sorted function bodies are partitioned into numbered units with
-limits of 200 functions and 2 MiB, preserving individual functions intact.
-Unsupported code is an error. The explicit research-only `--bootstrap` option
-can emit throwing stubs and must not be used for a release snapshot.
+The audit builds two trusted references, a reference self-build, stage1 and the
+bootstrap final. It holds output/cache paths, flags, metadata and source inputs
+constant, clearing caches between builds. Acceptance requires reproducible
+references and a final hash matching both the direct reference and its self-build.
+Use a trusted compiler of the same upstream version; direct cross-version
+`n-1 -> n` equality is not required.
 
-The native builder checks member digests and compiles sequentially at `-O0`.
-`NATIVE_OPTIMIZE=1` selects modest optimization, which reduces stack use but adds
-native compilation time. Direct builder calls accept `--optimize 0`, `1` or `2`.
-`--precompile-header` reduces repeated header parsing. `--build-dir` retains
-completed objects with stamps covering the compiler, command and input hashes.
-A linker response file avoids argument length limits; the executable is replaced
-only after a successful link. No build step invokes Crystal.
+The developer harness uses reduced compiler features and no release optimization
+for all compared builds. An audit of a distribution's final binary must use that
+distribution's recipe. Historical results are in [reproducibility](reproducibility.md).
 
-## Focused probes and measurements
+To use an explicit stage0 path, or build the reduced chain without a trusted
+reference, invoke the comparison harness directly:
 
-`make check-compiler` compares upstream Location, Token, lexer, parser, C callback
-and whole-program runtime probes with the trusted compiler. Each snapshot is
-regenerated twice, built with Crystal paths disabled, executed and checked for
-identical observable output. Corrupting a member must prevent replacement of the
-existing binary. Component probes use `-O1`. The runtime probe schedules a fiber
-and waits for a subprocess; collections exercise array buffer movement and
-record copies, while lexical-state probes check shell status and regex captures.
+```sh
+CRYSTAL_SRC=/path/to/crystal-source LLVM_CONFIG=/path/to/llvm-config \
+  python3 tools/bootstrap.py --stage0 /path/to/crystal-stage0
+```
 
-On Linux x86-64, upstream revision
-`f4acc09db3edbc51cf526ba97808fbaa3e857ea9`, a full native GCC build took 1,071 seconds
-and peaked at 1,144,372 KiB RSS for an earlier snapshot. The historical development snapshot's
-Clang build took 467 seconds at 838,784 KiB peak RSS. Stage0 then built stage1
-in 447 seconds at 5,955,924 KiB; stage1 built the final compiler in 63 seconds
-at 4,059,136 KiB. Logs and metrics remain under `build/`.
+Add `--host /path/to/trusted-crystal` for the reference comparison; omit
+`--stage0` for a reference-only audit. A completed chain sets
+`source_chain_built`; `stage0_verified` additionally requires the reference
+comparison. Reports and logs go to `build/bootstrap-chain`, or `--output-dir`.
+Verify source-only operation with Crystal unavailable or blocked.
 
-The published receipt includes source checksums and native library versions;
-[notices](../bootstrap/notices/README.md) retain upstream licensing information.
-Guix packaging and targets beyond the tested Linux x86-64 ABI remain future work.
-See [the update procedure](plan.md) and [runtime](runtime.md) for representation
-boundaries.
+## Native build behavior
+
+Strict translation fails on unsupported constructs before publishing the
+snapshot. The research-only `--bootstrap` generator option can emit throwing
+stubs and must not be used for release output.
+
+The snapshot splits function bodies into deterministic translation units while
+keeping individual functions intact. The native builder verifies the manifest
+hashes and compiles units sequentially to limit peak memory. The previous
+executable remains in place until linking succeeds.
+
+The developer stage0 build retains completed objects and precompiles the shared
+header. Object stamps cover the compiler, commands and generated inputs; rebuild
+affected artifacts when external headers or dependencies change. The upstream
+LLVM bridge is built separately and also needs rebuilding after a toolchain
+change.
+
+Native builds default to `-O0`. `NATIVE_OPTIMIZE=1` on `make stage0` trades longer
+native compilation for lower stage0 stack use. The runner gives stage0 a
+512 MiB stack limit because unoptimized C++ frames in recursive type inference
+exceed ordinary limits. This reserves address space rather than allocating the
+whole stack immediately. `--stage0-stack-mib` changes the runner's limit;
+subsequent Crystal builds retain their normal limits.
+
+Distinguish generation, native compilation/linking, stage0 execution, stage1
+execution and byte comparison when diagnosing a failure. Preserve the inputs
+and logs, reduce the failing workload, and add an observable regression. A
+crash, timeout and OOM need different remedies. Native build memory and stage0
+runtime memory must be measured separately.

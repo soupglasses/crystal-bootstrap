@@ -1,9 +1,8 @@
 # Bootstrap runtime
 
 The C++11 runtime uses Boehm GC for Crystal's object graph, traced allocations for
-array backing storage, and native C++ exceptions for control transport. These
-are system dependencies; the project does not vendor another collector or
-replace global `operator new`.
+array backing storage, and native C++ exceptions for control transport. Boehm GC
+is an external dependency; the runtime leaves global `operator new` unchanged.
 
 ## Ownership
 
@@ -32,9 +31,9 @@ without changing the total allocation capacity.
 
 Resources such as files and foreign allocations require explicit cleanup.
 Putting an owning `std::string`, default-allocated container, or `shared_ptr`
-inside a GC object is unsupported. Upstream startup, fibers, signal handling and subprocess IO run through generated
-code. Native callbacks use C function pointers; LLVM ownership remains governed
-by upstream wrappers. General runtime compatibility is not the acceptance test.
+inside a GC object is unsupported. Upstream startup, fibers, signal handling
+and subprocess I/O run through generated code. Native callbacks use C function
+pointers; LLVM ownership remains governed by upstream wrappers.
 
 ## Runtime adapters
 
@@ -64,8 +63,8 @@ unions still need copy-semantics work; arbitrary polymorphic use of native
 String/Array/IO adapters is not supported.
 
 Strings store a byte pointer and explicit length, preserving embedded NUL bytes.
-`String::Builder` uses a traced byte buffer and inherits generated IO. `Char::Reader` decoding and character
-encoding reuse [utf8proc's C API](https://juliastrings.github.io/utf8proc/doc/utf8proc_8h.html).
+`String::Builder` uses a traced byte buffer and inherits generated IO.
+`Char::Reader` decoding and character encoding reuse [utf8proc's C API](https://juliastrings.github.io/utf8proc/doc/utf8proc_8h.html).
 The adapter exposes byte positions, character widths, invalid-byte state, and
 forward reading. It does not implement the entire String, Unicode, or IO API.
 Integer formatting uses bounded digit storage and a single GC allocation for
@@ -90,27 +89,24 @@ rescue scope.
 
 `make check` compares generated programs with the pinned upstream compiler.
 `make check-snapshot` runs their native builds without Crystal. Both also run
-[the runtime stress program](../tests/runtime/memory.cpp) under GCC and available
-Clang at `-O0` and `-O2`.
+[the runtime stress program](../tests/runtime/memory.cpp) with the selected C++
+compiler and available Clang at `-O0` and `-O2`.
 
 `make check-memory` runs the standalone stress test with the selected C++ compiler.
 
 The stress program caps the GC heap at 32 MiB and allocates over 1 GiB cumulatively.
 It maintains a small live set while discarding cyclic graphs, closures in arrays,
-boxed procs held in unions, and replaced return signals. Pending raises and returns survive forced
-collections while held in ordinary C++ exception storage. Successful execution
-checks retained values and reports allocation and heap counters in
+boxed procs held in unions, and replaced return signals. Pending raises and
+returns survive forced collections while held in ordinary C++ exception storage.
+The test checks retained values and reports allocation and heap counters in
 `build/check/{differential,snapshot-only}.json`.
 
 [The generated allocation-pressure fixture](../tests/fixtures/gc_pressure.cr)
 additionally exercises the emitter's object layouts and closure captures under
 the same heap limit. The limit belongs to the tests, not the runtime defaults.
 
-These checks establish bounded collector storage for these workloads. They do
-not bound process RSS, frontend specialization, generated source size, native
-compiler memory, LLVM allocations, or the live graph of a full Crystal compiler.
-The historical development snapshot's Clang build peaked at 838,784 KiB. Stage0 successfully
-compiled the upstream compiler at 5,955,924 KiB peak RSS, with a 512 MiB stack
-limit for the large unoptimized C++ frames in recursive type inference. The
-subsequent Crystal build used 4,059,136 KiB peak RSS and the normal stack limit.
-These measurements are workload evidence, not a configured heap cap.
+The bounded-heap result applies to collector storage in these test workloads.
+It does not bound process RSS, frontend specialization, generated source size,
+native compiler memory, LLVM allocations or the live graph of a full compiler.
+See [development build results](reproducibility.md) for measured compiler memory
+use and the stage0 stack limit.

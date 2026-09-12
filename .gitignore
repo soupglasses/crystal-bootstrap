@@ -54,12 +54,10 @@ dkms.conf
 # debug information files
 *.dwo
 
-# Local generator, reference compilers, and feasibility-test products
+# Local generation, compilers and test products
 /build/
 /.crystal/
 __pycache__/
 
 # Generated sources and CI release archives
 /dist/
-/bootstrap/stage0/
-/bootstrap/examples/

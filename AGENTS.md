@@ -1,148 +1,152 @@
 # Maintaining crystal-bootstrap
 
-## Purpose and acceptance
+## Scope
 
-Maintain a readable source bootstrap for the upstream Crystal compiler, suitable
-for a Guix source-build chain, with little adaptation between Crystal releases:
+Maintain a readable C++11 source bootstrap for the upstream Crystal compiler,
+suitable for a Guix source-build chain. The generator reuses upstream's typed
+program; native tools build stage0, stage0 builds stage1, and stage1 rebuilds
+upstream Crystal.
 
-```text
-generated C++ + native dependencies -> crystal-stage0
-crystal-stage0 + upstream source    -> crystal-stage1
-crystal-stage1 + upstream source    -> final Crystal
-```
+The acceptance workload is reliable construction of the final upstream compiler.
+Fix defects that affect that workload or threaten its reliability. General
+Crystal conformance and the entire upstream test suite are outside scope.
+Prefer a small adapter update over compatibility profiles or older targets
+without a continuing purpose.
 
-- Prioritize reliable construction of the final upstream compiler. General
-  Crystal compatibility and passing the entire upstream test suite are outside
-  scope. Fix defects that affect this workload or undermine its reliability;
-  do not accumulate unrelated language features.
-- Final acceptance is the source chain matching a reproducible same-version
-  upstream reference under an identical recipe. Direct cross-version `n-1 -> n`
-  equality is not required. Do not equate source-generation determinism with
-  final compiler reproducibility or claim arbitrary upstream download hashes.
-- Three-part numeric Git tags name releases; their commits select Crystal targets in
-  `release.json`. Derive the CI matrix and release title from that list. Use the workflow tag filter without a second validator or tag prefix. New
-  releases may drop the older target. Prefer updating the small adapter over
-  maintaining compatibility profiles or older targets without a purpose.
-- GitHub Actions builds are authoritative for released sources. Local generation
-  produces an unpacked tree without packaging or attestations. The release job
-  generates, packages and attests source; distributions build the compiler chain.
-  Keep generated sources out of Git history. Historical receipts describe only
-  their recorded development revision, not a newer release.
+Final acceptance requires a reproducible same-version upstream reference and
+matching final bytes under an identical recipe. Direct cross-version `n-1 -> n`
+equality is not required. Source-generation determinism, a completed compiler
+chain and final binary equality are separate claims. Historical verification records apply
+only to their recorded source, snapshot and toolchain.
 
-## Architecture to preserve
+## Design constraints
 
-- Reuse upstream parsing, macro expansion, type inference, overload resolution,
-  generic specialization, compiler algorithms, and reachable library bodies.
-  Implement the native representation and lowering that upstream does not supply.
-- Generate readable C++11 directly from the typed program. Seed names the
-  lowering conventions and runtime ABI; it does not need another parser.
-  Preserve descriptive names, source references, structured control flow, and
-  inspectable runtime helpers. Do not distribute LLVM IR, serialized heaps, or
-  executable payloads as substitutes for source.
-- Allow an existing Crystal compiler to build and run the generator. Ordinary
-  snapshot builds must use native tools only, with no generator prerequisite,
-  hidden Crystal invocation, or historical compiler binary fallback.
-- Retain upstream's LLVM backend inside stage0 to compile stage1. GCC and Clang
-  are acceptable native compilers; TinyCC compatibility is not a requirement.
-  Select dependencies that can be built through Guix's source bootstrap, and
-  verify the package closure before claiming Guix support.
-- Prefer small adapters over new subsystems. Identify adapted operations by
-  resolved type and overload, not method name alone. Keep upstream integration
-  changes narrow and explain the representation mismatch they address.
+- Reuse upstream parsing, macro expansion, typing, overload resolution, generic
+  specialization, compiler algorithms and reachable library bodies. Implement
+  the native representation and lowering upstream does not supply.
+- Emit readable C++11 directly from the typed program. Seed names the lowering
+  conventions and runtime ABI. Keep descriptive names, source references,
+  structured control flow and inspectable helpers. LLVM IR, serialized heaps
+  and executable payloads are not substitutes for source.
+- An existing Crystal compiler may build and run the generator. Native snapshot
+  builds must work without it, including without a hidden invocation or binary
+  fallback. Retain stage0's upstream LLVM backend to compile stage1.
+- GCC and Clang are acceptable native compilers; TinyCC support is not required.
+  Select dependencies available through Guix's source bootstrap and verify the
+  complete package closure before claiming Guix support.
+- Keep adapters narrow. Identify operations by resolved type and overload, and
+  explain the representation mismatch. Consult [lowering](docs/lowering.md)
+  and [runtime](docs/runtime.md) before changing representations.
 
-## Where to work
+## Working on a change
 
-| Location | Responsibility |
+The maintained implementation lives in `generator/` and `runtime/`. `tools/`
+contains generation, native construction, packaging and comparison drivers.
+Semantic fixtures, compiler component probes and allocation tests live under
+`tests/`. `release.json`, `.github/` and `packaging/` define source publication
+and distribution examples. `notices/` supplies notices included in source
+archives; `docs/verification/` holds dated development evidence. Keep generated
+sources out of Git.
+
+Inspect the pinned upstream implementation and resolved types before adding a
+workaround. Preserve evaluation order, copying, aliasing, lexical state and
+cleanup. A discarded or nil result can still have side effects. Adapter layouts
+must remain compatible with upstream methods that manipulate their fields;
+generated C++ layout queries must survive frontend cleanup instead of becoming
+LLVM constants. GC payloads cannot depend on C++ destructors, and native
+exception transport needs explicit roots for managed pointers.
+
+Diagnose the failing stage: generation, native compilation/linking, stage0,
+stage1 or byte comparison. Preserve inputs and logs, reduce the failure, and
+add an observable regression where it protects behavior. Distinguish crashes,
+timeouts and OOMs before changing optimization or resource limits.
+
+Change maintained sources, then regenerate into a fresh candidate directory.
+Temporary generated-code edits may help diagnosis but cannot become release
+fixes. Strict translation must fail on unsupported constructs; research-only
+`--bootstrap` stubs are never acceptable release output.
+
+Keep the normal upstream checkout unchanged. Use a separate copy for diagnostic
+patches and preserve shard symlinks when copying: their `lib/` links can form
+cycles. Keep temporary compilers, objects and caches in `build/`; check disk
+capacity before duplicating full snapshots or caches. Preserve previous local
+generation on failure and keep different targets in separate output directories.
+
+## Verification
+
+Use the [Makefile entry points](docs/compiler-translation.md). Set `CRYSTAL`,
+`CRYSTAL_SRC`, `LLVM_CONFIG` and `CXX` when the defaults select unintended inputs.
+The default upstream checkout is `../../crystal-lang/crystal`.
+
+| Change | Check |
 | --- | --- |
-| `generator/main.cr`, `generator/inventory.cr` | Frontend invocation, generation options, reachable-program inventory. |
-| `generator/emitter.cr` | Type representation, specialization, C++ emission, deterministic snapshot publication. |
-| `generator/frontend.cr` | Generator-only upstream hooks; layout queries must survive until C++ layout is known. |
-| `generator/compiler.cr`, `generator/stage0.cr` | Upstream compiler imports and the minimal stage0 entry point. |
-| `runtime/` | Maintained C++ runtime and representation adapters. |
-| `tools/build_snapshot.py`, `tools/measure.py` | Sequential native construction, object reuse, resource measurements. |
-| `tools/generate.py`, `tools/package_source.py` | Local generation and CI source archive packaging. |
-| `tools/build_source.py`, `tools/bootstrap.py` | Offline release build driver and developer comparison harness. |
-| `tests/fixtures/`, `tests/compiler/`, `tests/runtime/` | Semantic regressions, real compiler components, allocation pressure. |
-| `bootstrap/` | Source notices and historical development receipts. |
-| `release.json`, `.github/workflows/`, `packaging/` | Target pins, GitHub source releases, and distribution examples. |
+| Lowering or adapter semantics | `make check` |
+| Compiler integration, callbacks, collections or lexical state | `make check-compiler` |
+| Allocation or ownership | `make check-memory` and the affected generated probes |
+| Example snapshots using native tools alone | `make check-snapshot` |
+| Generation replacement, packaging or build entry points | `make check-release` |
+| Unpacked source tree | `make bootstrap OUTPUT=build/generated/<version>` |
+| Developer candidate and binary comparison | `make stage0 SNAPSHOT=build/candidate`, then `make check-bootstrap BOOTSTRAP_HOST=/path/to/trusted-crystal` |
 
-Consult [lowering](docs/lowering.md) and [runtime](docs/runtime.md) before changing
-representations. Use [the update procedure](docs/plan.md) for full publication and
-[research](docs/research.md) for the Guix and related-project rationale.
+Test observable behavior through realistic interfaces: output, exit status,
+retained values, collection under pressure and compiler construction. Avoid
+assertions about emitter formatting, internal calls or incidental command text.
+Start with the affected probe and run the checks appropriate to the change.
+Documentation edits need no compiler rebuild. Run the full chain before calling
+a changed full snapshot verified; do not repeat successful expensive builds
+without a new change or unresolved concern.
 
-## Implementing and diagnosing changes
+`check-bootstrap` audits the existing repository `build/crystal-stage0` without
+rebuilding it. `make bootstrap` builds inside the selected unpacked tree. Bind
+comparison evidence to the actual candidate manifest and binary hashes. The
+developer audit uses reduced compiler features; it does not verify a different
+distribution recipe.
 
-- Inspect the pinned upstream implementation and resolved types before adding
-  a workaround. Preserve evaluation order, value copying, aliasing, lexical
-  state, and cleanup across the affected boundary. A discarded or nil result
-  can still have side effects.
-- Respect native layout and ownership. GC-managed payloads cannot depend on C++
-  destructors for cleanup; pointers held in exception transport need explicit
-  roots. Keep adapter layouts compatible with upstream methods that manipulate
-  the same fields. Layout queries for generated C++ must not use LLVM constants.
-- Diagnose the failing stage: generation, native compilation/linking, stage0
-  execution, stage1 execution, or byte comparison. Preserve logs and inputs,
-  reduce the failure, and add an observable regression when it protects behavior.
-  A crash, timeout, and OOM require different remedies.
-- Change maintained generator/runtime sources, then regenerate. Temporary edits
-  to isolated generated output can help diagnosis, but must not become published
-  fixes. Strict translation must fail on unsupported constructs; the generator's
-  research-only `--bootstrap` stub mode is never acceptable release output.
-- Keep the upstream checkout unchanged for normal work. Use a separate copy for
-  diagnostic patches and preserve symlinks when copying shards: their `lib/`
-  links can form cycles. Keep temporary compilers, objects, and caches in `build/`.
+For comparisons, control source/output/cache paths, metadata, flags, native
+dependencies, LLVM and environment; clear caches between builds. Report differing
+inputs instead of assuming equivalence. Verify source-only operation with Crystal
+unavailable or blocked. `source_chain_built` records completion;
+`stage0_verified` additionally requires the trusted comparison.
 
-## Verification proportional to the change
+## Build resources and publication
 
-Use the Makefile interfaces; set `CRYSTAL_SRC`, `CRYSTAL`, `LLVM_CONFIG`, and `CXX`
-explicitly when their defaults do not identify the intended inputs. The default
-upstream location is `../../crystal-lang/crystal`.
+Keep snapshot partitioning deterministic and native compilation sequential.
+Completed object caches help diagnosis, but invalidate affected artifacts after
+compiler, header, command or dependency changes. The separately built LLVM bridge
+also needs rebuilding after a toolchain change. Measure native build memory and
+stage0 runtime memory separately. Use the runner's explicit stage0 stack limit
+for the unoptimized C++ build; treat optimization, stack and heap limits as
+measured trade-offs.
 
-| Change or claim | Relevant verification |
-| --- | --- |
-| Lowering or adapter semantics | `make check CRYSTAL=/path/to/crystal` for differential fixtures. |
-| Compiler integration, callbacks, collections, lexical state | `make check-compiler CRYSTAL=/path/to/crystal`. |
-| Allocation or ownership | `make check-memory`, plus affected generated probes. |
-| Locally generated example snapshots without Crystal | `make check-snapshot`. |
-| Full candidate bootstrap | `make bootstrap SNAPSHOT=build/candidate CXX=clang++`. |
-| Final binary equality | `make check-bootstrap BOOTSTRAP_HOST=/path/to/trusted-crystal`. |
+Compare two independent generations byte for byte, including manifests, with
+identical declared inputs. Source paths and macro inputs matter; a comparison
+holding them constant does not prove relocation independence.
 
-- Test effects through realistic interfaces: output, exit status, retained values,
-  collection under pressure, and actual compiler construction. Do not replace
-  these with assertions about incidental emitter formatting or internal calls.
-- Start with the affected probe. Run the full chain before declaring a changed
-  full snapshot verified; do not repeat expensive successful builds without a
-  new change or unresolved concern. Documentation-only changes need no compiler
-  rebuild. Upstream tests may supply useful regressions, not a conformance gate.
-- `check-bootstrap` uses the existing `build/crystal-stage0`; it does not rebuild
-  it. Bind evidence to the candidate's actual manifest and binary hashes.
-- Keep source, output, cache paths, metadata, flags, native dependencies and LLVM
-  version controlled for binary comparisons. Clear compilation caches between
-  compared builds. Report LLVM/path differences instead of assuming equivalence.
-- Verify source-only operation with Crystal unavailable or blocked. A successful
-  `source_chain_built` result is distinct from `stage0_verified`, which also
-  requires the trusted comparison. Compilable C++ alone proves neither.
+Follow [releasing](docs/releasing.md). Three-part numeric tags select commits;
+`release.json` at those commits supplies the target list for the CI matrix and
+release title. Keep release selection in the workflow tag filter. GitHub Actions
+generates, packages and attests released sources. Local generation produces an
+unpacked tree. Use GitHub-native attestations and
+immutable releases, and never attest a local archive as a GitHub build.
 
-## Resources and publication
+Publish generated sources, runtime, pinned upstream/shards and notices together.
+Consumer builds must be offline and independent of Git and preexisting Crystal.
+Preserve the final compiler's upstream features and distribution build settings.
+Packaging checks do not require a full compiler or RPM build.
 
-- Preserve deterministic partitioning and sequential native compilation to keep
-  peak memory manageable. Use completed object caches during diagnosis, but
-  invalidate affected artifacts when compiler, headers, commands, or dependencies
-  change. Account for the separately built LLVM bridge when changing toolchains.
-- Measure native build memory separately from stage0 runtime memory. The current
-  `-O0` path needs a larger stage0 stack; use the runner's explicit stack limit.
-  Optimization, heap limits, and stack limits are measured trade-offs, not fixes
-  to apply blindly. Check disk capacity before duplicating full snapshots/caches.
-- Generate candidates into fresh directories and compare two independent runs
-  byte for byte, including manifests, with identical declared inputs. Source
-  paths and macro inputs matter; do not claim relocation independence from a
-  comparison that held them constant.
-- Publish generated sources, runtime, pinned upstream/shards and notices together
-  through the GitHub workflow in [the release procedure](docs/plan.md). Use
-  GitHub-native attestations and immutable releases; do not build a parallel local
-  provenance/signing system. Never attest a local archive as a GitHub build.
-- Keep native consumer builds offline and independent of Git or preexisting
-  Crystal. Preserve final upstream compiler features and allow distribution build
-  settings. Do not run a full compiler/RPM build just to verify source packaging.
-- Preserve prior local generation on failure. Keep different target outputs in
-  separate directories; do not delete another version's output on regeneration.
+## Documentation
+
+Write for compiler engineers familiar with transpilation and bootstrapping.
+Verify behavior against the code; fix implementation defects when needed instead
+of documenting accidental behavior as a contract. Explain semantic constraints
+and the reasons for design choices, including trade-offs and unresolved work. Keep build requirements, public references and
+verification limits when editing for clarity. Avoid tutorials on familiar
+concepts and file inventories that duplicate the source tree.
+
+Keep build and diagnostic procedures in the verification guide, publication in
+`docs/releasing.md`, design contracts in architecture/lowering/runtime, and dated
+measurements with their verification records in `docs/reproducibility.md`.
+Research should retain useful precedents, references and open constraints; remove settled
+feasibility checklists and repeated progress reports. Update links when moving
+content. GitHub is the target Markdown renderer; Mermaid is suitable for compiler
+flows and comparisons.

@@ -1,103 +1,87 @@
 # Bootstrap architecture
 
-## Boundary and responsibilities
+The transpiler adds a C++ backend to upstream Crystal's frontend. It runs
+semantic analysis with LLVM code generation disabled, then lowers the typed
+compiler and its reachable library and shard bodies to C++11. Seed is the name
+used in the implementation for this lowering and its runtime ABI.
 
-An existing Crystal binary may build and run the generator. Maintainers publish
-its deterministic source output; builders compile that snapshot with an existing
-source-bootstrappable C++ toolchain. Independent regeneration is not required.
+## Frontend boundary
 
-| Component | Responsibility |
-| --- | --- |
-| `crystal-to-cpp` | Reuse the pinned Crystal frontend; lower resolved types, functions, and primitives to readable C++11. |
-| Seed | Internal lowering conventions and runtime operations; no serialized language or independent parser. |
-| Bootstrap snapshot | Generated compiler and reachable library source, runtime, configuration, and provenance. |
-| `crystal-stage0` | Native compilation of the snapshot; runs upstream compiler logic, including its LLVM backend. |
-| `crystal-stage1` | Normal upstream compiler built by stage0 through LLVM. |
-| Final `crystal` | Rebuild of the same upstream source with stage1, compared against a trusted build. |
+Parsing, macro expansion, type inference, overload resolution and generic
+specialization all run through upstream code. The C++ backend works from the
+resulting concrete types and resolved calls. It implements native layouts,
+dispatch, primitives, closures and control flow as described in the
+[lowering contract](lowering.md).
 
-Full generated compiler snapshots compile and link with GCC and Clang. The
-historical development snapshot completes the compiler chain and matches the trusted
-self-build; see [reproducibility](reproducibility.md) for the direct `n-1`
-comparison. The locally generated examples are smaller regression programs. Stage names are local to this
-project and unrelated to the [Stage0 project](https://github.com/oriansj/stage0-posix).
-
-## Direct source generation
-
-At the investigated upstream revision,
+This depends on compiler internals rather than a stable frontend API, so an
+upstream update may require changes to the adapter. The original investigation
+used
 [`Compiler#compile_configure_program`](https://github.com/crystal-lang/crystal/blob/f4acc09db3edbc51cf526ba97808fbaa3e857ea9/src/compiler/crystal/compiler.cr)
-parses, runs `Program#semantic`, then generates code. Setting `no_codegen` lets
-the prototype access the typed result without generating LLVM IR for its input.
-The generator executable itself is compiled normally by Crystal.
+and [`Program#semantic`](https://github.com/crystal-lang/crystal/blob/f4acc09db3edbc51cf526ba97808fbaa3e857ea9/src/compiler/crystal/semantic.cr).
+Generator-only hooks preserve layout queries until the C++ layout is known.
+Stage0's LLVM backend keeps upstream's layout rules for the programs it compiles.
 
-The typed result exposes instantiated methods and resolved call targets. It
-still needs explicit lowering for layouts, dispatch, primitives, closures, and
-control flow. This is a backend project, not a syntax substitution tool.
+The snapshot must include initializers, runtime hooks, callbacks and macro
+dependencies as well as resolved method calls. A `require` scan cannot establish
+that closure. Library bodies have two roles: their C++ translation runs inside
+stage0, and their original source is compiled into stage1. Expanding the
+compiler's own macros during generation leaves its macro-processing algorithms
+in stage0, ready to compile subsequent programs. Generic specialization works
+the same way.
 
-For a complete snapshot, generate the compiler and its reachable standard
-library and shard implementations together. Include initializers, runtime
-hooks, foreign callbacks, and macro dependencies. A scan of `require` statements
-cannot establish this closure. The original standard library remains input to
-stage1 compilation; its generated counterpart supplies stage0's execution needs.
+## Compiler chain
 
-Expanding the compiler's own macros and specializing its generics during snapshot
-creation preserves the compiler algorithms that process macros and generics in
-future input programs. There is no need to maintain a separate Crystal frontend.
+| Stage | Construction and role |
+| --- | --- |
+| Generator | Built and run by an existing Crystal compiler; emits the source snapshot. |
+| `crystal-stage0` | Built from C++ and native dependencies; runs upstream compiler logic and its LLVM backend. |
+| `crystal-stage1` | Upstream compiler built by stage0 through LLVM. |
+| Final `crystal` | Same upstream source rebuilt by stage1, with the distribution's final build settings. |
 
-## Why C++11
+Ordinary snapshot builds use native tools without invoking the generator or an
+installed Crystal. The intermediate compilers omit optional features to reduce
+the bootstrap workload; the distribution driver builds the final compiler with
+upstream features enabled.
 
-A separate Seed syntax and parser add a second source format to maintain. Direct
-source emission removes that layer. C++11 also supplies exception transport and
-closure facilities that would otherwise require a custom C runtime. GCC is the
-baseline toolchain; TinyCC compatibility is not a requirement.
+The stage0 entry point accepts source and output paths and uses upstream's
+compiler API. It runs upstream initialization and shutdown. Fibers, subprocess
+I/O and signal handling remain reachable even with multithreading disabled.
 
-The runtime uses Boehm-allocated closure environments and shared GC cells, with
-traced array buffers matching the upstream fields. Native raises and nonlocal control carry explicit
-temporary GC roots. An explicit cleanup helper executes `ensure` after native
-unwinding, allowing cleanup to replace a pending exception or return.
+## Native implementation
 
-A small documented set of standard-library methods uses native runtime adapters.
-This reduces bootstrap implementation work while retaining upstream semantics
-as the differential test reference. The supported ABI and memory-pressure tests
-are described in [Runtime](runtime.md). Foreign callbacks, field initialization and complete compiler source translation
-are implemented. Runtime startup and the full compiler chain have passed the configured build.
+C++11 gives the runtime exception transport and lambdas that can be compiled
+with GCC or Clang. Boehm GC traces the Crystal object graph. The
+[runtime adapters](runtime.md) handle operations whose upstream implementation
+assumes a different layout or ownership model. Emitting C++ directly also avoids
+a separate interpreter or parser for Seed.
 
-## Native dependencies
+Stage0 links LLVM to compile stage1. The native build compiles upstream's C++
+LLVM bridge against the selected headers and libraries. Boehm GC, utf8proc and
+PCRE2 supply collection, Unicode operations and regex support. The final
+compiler needs its additional upstream libraries, listed in the
+[archive README](../packaging/source-README.md). The complete Guix dependency
+closure remains unverified; [research](research.md) records the rationale.
 
-Stage0 links compatible LLVM libraries and preserves upstream's
-LLVM backend to build stage1. LLVM does not produce the snapshot. Removing LLVM
-from stage0 would require additional backend integration and is outside the
-first bootstrap milestone.
+## Generation inputs and determinism
 
-Select one Linux x86-64 libc/LLVM configuration initially. LLVM's C API still
-requires its native implementation and relevant C++ runtime. The native build compiles upstream
-`src/llvm/ext/llvm_ext.cc` with the selected LLVM headers and links the resulting
-object with LLVM; no Crystal-produced object is needed. Reuse Boehm GC and native libraries where their semantics fit. UTF-8 character
-decoding uses utf8proc, a C library; the exact Guix package closure still needs
-verification for a release.
+Each snapshot contains the generated units, shared declarations and runtime
+headers, with a manifest of their hashes. The surrounding source tree includes
+pinned upstream and shards, notices, build tools and `SOURCE.json` with target
+and generation settings. [Releasing](releasing.md) describes archive publication and attestation.
 
-The stage0 driver uses upstream's compiler API with explicit optional-feature
-flags. It accepts a source path and an output path. Disabling multithreading
-does not establish that fibers and process I/O are unnecessary. Linux's current
-default event loop is epoll, so libevent is not an unconditional requirement.
+The generator uses stable names and traversal order, and preserves source
+locations on generated functions. It normalizes frontend temporary identifiers
+and anonymous macro comments to remove host object addresses. The two generation
+runs use the same source paths and declared environment, so their comparison
+does not test independence from checkout location.
 
-## Reproducibility
+Macros can read files and environment variables, run commands, and
+[compile helper programs](https://github.com/crystal-lang/crystal/blob/f4acc09db3edbc51cf526ba97808fbaa3e857ea9/src/compiler/crystal/macros/macros.cr).
+Changes to these inputs need review alongside source and toolchain changes.
+The snapshot manifest and `SOURCE.json` do not capture every possible external
+macro input or lock the distribution's native dependencies.
 
-A full snapshot manifest must record source and shard digests, generator version,
-host Crystal version, runtime ABI, target layout, native dependencies, flags,
-declared environment and build epoch, macro command inputs, and output hashes.
-
-Use stable names and traversal, deterministic file ordering, relative source
-references, and canonicalized upstream temporary identifiers. Anonymous macro comments use their original source locations, removing host
-object addresses. The full snapshot still treats source paths as declared inputs;
-normalization across different checkout paths remains release work.
-Generate twice in different directories and compare complete output bytes.
-Different declared target configurations may produce different snapshots.
-
-Macros may inspect files, the environment, or subprocess output, and
-[`macro_compile`](https://github.com/crystal-lang/crystal/blob/f4acc09db3edbc51cf526ba97808fbaa3e857ea9/src/compiler/crystal/macros/macros.cr)
-can compile helper programs. Those inputs need capture and verification for a
-full compiler snapshot; the current fixtures do not establish that coverage.
-
-Normal snapshot builds must neither run the generator nor find an installed
-Crystal as a fallback. Regeneration with stage1 is an explicit consistency
-check. It is not an independent-origin requirement.
+Compiler verification additionally controls LLVM, dependencies, flags, metadata,
+source/output paths and cleared caches. The [verification guide](compiler-translation.md)
+defines the checks; [historical results](reproducibility.md) record the tested
+configuration and its limits.

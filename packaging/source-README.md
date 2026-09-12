@@ -1,8 +1,8 @@
 # Crystal bootstrap sources
 
-This directory contains readable generated C++11, its runtime, pinned upstream
-Crystal and shard sources, and the native build driver. `SOURCE.json` records
-the target and generation settings. No Crystal executable is required to build it.
+This tree contains generated C++11, runtime, pinned Crystal and shard sources,
+and an offline native build driver. `SOURCE.json` records the target and
+generation settings.
 
 On Linux x86-64, install a C/C++ compiler, Python 3, Make, pkg-config, the LLVM
 major specified in `SOURCE.json` (development libraries and tools), Boehm GC,
@@ -13,24 +13,24 @@ make CXX=clang++ LLVM_CONFIG=llvm-config-20
 ./build/crystal --version
 ```
 
-The command performs `C++ -> crystal-stage0 -> crystal-stage1 -> crystal`, using
-fresh native objects and caches. It uses no network, Git or existing Crystal.
-Stage0 runs with a 512 MiB stack limit; allow enough memory for upstream type
-inference (the earlier prototype needed about 6 GiB). C++ units compile serially.
+Use the LLVM major from `SOURCE.json` in the command above. The build compiles
+C++ into stage0, uses stage0 to build stage1, then rebuilds Crystal with stage1.
+It uses fresh native objects and caches, without network access, Git or an
+existing Crystal executable. C++ units compile serially. Stage0 has a 512 MiB
+stack limit; an earlier development build needed about 6 GiB peak RSS during
+upstream type inference.
 
-Only the intermediate compilers omit optional features. The final build uses
-upstream's full compiler source without those feature exclusions. Set
-`FINAL_FLAGS`, `CRYSTAL_CONFIG_PATH`, `CRYSTAL_CONFIG_LIBRARY_PATH`,
-`CRYSTAL_CONFIG_BUILD_COMMIT`, and other upstream build settings as needed for
-the distribution recipe. Install `build/crystal` and `upstream/src` as the
-compiler and standard library, respectively.
+The intermediate compilers omit optional features; the final compiler enables
+them. Set `FINAL_FLAGS`, `CRYSTAL_CONFIG_PATH`, `CRYSTAL_CONFIG_LIBRARY_PATH`,
+`CRYSTAL_CONFIG_BUILD_COMMIT`, and other upstream settings for the distribution
+recipe. Install `build/crystal` and `upstream/src` as the compiler and standard
+library. A failed build preserves the previous completed binaries.
 
-GitHub's attestation establishes the origin of this source archive. The release
-workflow compares two complete translations; it does not build or certify the
-compiler chain. Distribution build services must validate the final compiler
-and compare SHA256 with a same-version upstream reference under an identical
-recipe, including LLVM, dependencies, flags, source/output paths and caches.
-Byte equality with arbitrary upstream binary downloads is not promised.
+GitHub's attestation establishes the source archive's origin. The release
+workflow checks deterministic generation; distribution builders validate the
+compiler chain. Compare the final binary with a reproducible same-version
+upstream reference using identical LLVM, dependencies, flags, metadata,
+environment, source/output paths and cleared caches.
 
-See https://github.com/soupglasses/crystal-bootstrap for the generator, workflow,
-release verification instructions, and packaging example.
+The [project repository](https://github.com/soupglasses/crystal-bootstrap)
+contains the generator, release verification instructions and packaging example.
