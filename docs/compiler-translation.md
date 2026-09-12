@@ -90,6 +90,59 @@ Add `--host /path/to/trusted-crystal` for the reference comparison; omit
 comparison. Reports and logs go to `build/bootstrap-chain`, or `--output-dir`.
 Verify source-only operation with Crystal unavailable or blocked.
 
+## Use crystal-to-cpp directly
+
+`crystal-to-cpp` is this project's transpiler executable. `make generator` builds
+it under `build/`. A header such as `Generated from stage0.cr by crystal-to-cpp`
+identifies the input entry file and the tool: `stage0.cr` is the driver used to
+translate the upstream compiler for the bootstrap.
+
+The executable also accepts files outside this repository for translation
+experiments. Language coverage is limited to the compiler bootstrap workload;
+unsupported constructs fail translation.
+
+Build the transpiler with an existing Crystal compiler and an upstream checkout
+with populated shards:
+
+```sh
+make generator CRYSTAL=/path/to/crystal CRYSTAL_SRC=/path/to/crystal-source \
+  LLVM_CONFIG=/path/to/llvm-config
+```
+
+Use that same upstream checkout's libraries when translating. Keep the
+crystal-bootstrap checkout available too: `--output-dir` copies runtime headers
+from the repository where the transpiler was built. For example, save this as
+`/path/to/hello.cr`:
+
+```crystal
+puts "Hello from Crystal"
+```
+
+From this repository, run:
+
+```sh
+CRYSTAL_PATH=/path/to/crystal-source/lib:/path/to/crystal-source/src \
+LLVM_CONFIG=/path/to/llvm-config \
+  ./build/crystal-to-cpp --program --output-dir build/hello-cpp /path/to/hello.cr
+python3 tools/build_snapshot.py build/hello-cpp --cxx clang++ \
+  --link-flags=-lpcre2-8 -o build/hello
+./build/hello
+```
+
+The output directory must be new. It contains C++, runtime headers and a manifest.
+The native build needs Python, a C++11 compiler, pkg-config, Boehm GC, utf8proc
+and the program's foreign libraries. Crystal is only needed for generation;
+the native builder can compile a copied snapshot on its own. Additional foreign
+objects and libraries can be supplied with `--object` and `--link-flags`.
+
+`--program` includes upstream startup, shutdown and top-level execution. Without
+it, the input must end in a zero-argument `bootstrap_main` call, and other
+executable top-level code in the input file is rejected. That mode is used by
+focused fixtures. Omitting `--output-dir` writes a single C++ source to stdout,
+which needs this project's runtime headers to compile. `-Dname` supplies a
+Crystal compile-time flag; `--inventory` reports the typed program without
+emitting C++. The transpiler always disables multithreading.
+
 ## Native build behavior
 
 Strict translation fails on unsupported constructs before publishing the

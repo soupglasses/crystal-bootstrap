@@ -4,15 +4,15 @@ crystal-bootstrap translates the upstream Crystal compiler to C++11. This lets
 distribution builders start with GCC or Clang instead of a prebuilt Crystal
 compiler. The goal is to bring Crystal into Guix's source bootstrap.
 
-The transpiler is written in Crystal and reuses upstream's frontend, compiler
-algorithms and reachable library code. We maintain the C++ lowering and runtime
-adapters. The generated stage0 compiler keeps upstream's LLVM backend to build
+The transpiler, `crystal-to-cpp`, is part of this project. It is written in
+Crystal and reuses upstream's frontend, compiler algorithms and reachable
+library code. We maintain the C++ lowering and runtime adapters. The generated stage0 compiler keeps upstream's LLVM backend to build
 the next stage.
 
 ```mermaid
 flowchart LR
     subgraph maintainer["Maintainer / GitHub Actions"]
-        host["Existing Crystal compiler"] -->|builds and runs| generator["Transpiler"]
+        host["Existing Crystal compiler"] -->|builds and runs| generator["crystal-to-cpp"]
         upstream["Pinned Crystal source and shards"] --> generator
         generator -->|upstream frontend| typed["Typed program"]
         typed -->|C++ lowering| cpp["C++11 snapshot and runtime"]
@@ -89,8 +89,9 @@ for publication and distribution settings.
 
 ## Development
 
-Start with the [build and verification guide](docs/compiler-translation.md).
-Differential fixtures, compiler component probes and allocation tests cover the
+Start with the [build and verification guide](docs/compiler-translation.md),
+including [direct use of `crystal-to-cpp`](docs/compiler-translation.md#use-crystal-to-cpp-directly)
+for translation experiments. Differential fixtures, compiler component probes and allocation tests cover the
 bootstrap workload. General Crystal conformance is outside the project's scope.
 
 - [Architecture](docs/architecture.md): frontend boundary and generated source inputs.

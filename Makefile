@@ -17,6 +17,7 @@ GENERATOR_ENV = CRYSTAL_PATH="$(UPSTREAM)/lib:$(UPSTREAM)/src" CRYSTAL_CACHE_DIR
 
 .PHONY: help generator reference check regen check-snapshot check-memory
 help:
+	@echo 'make generator: build crystal-to-cpp for direct translation'
 	@echo 'make generate: generate and refresh build/generated/<version> (downloads pinned inputs)'
 	@echo 'make check CRYSTAL=/path/to/crystal: build the generator and run differential probes'
 	@echo 'make regen: explicitly refresh the readable example snapshots'
