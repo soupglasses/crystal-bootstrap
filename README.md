@@ -2,8 +2,9 @@
 
 Bootstrap upstream Crystal from readable generated C++11, without installing a
 historical Crystal compiler. **Release `2026.09.12` targets Crystal `1.21.0` on
-Linux x86-64 with LLVM 20.** Each bootstrap release targets one Crystal version;
-a later release can replace that target without retaining compatibility branches.
+Linux x86-64 with LLVM 20.** A Git tag names each bootstrap release; the files at that commit select its
+Crystal target. A later release can replace the target without retaining
+compatibility branches.
 
 ```text
 Maintainer / GitHub Actions:

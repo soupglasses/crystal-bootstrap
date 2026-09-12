@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import stat
 import zipfile
+from urllib.parse import quote
 
 from generate import digest
 
@@ -36,7 +37,10 @@ def main():
     parser.add_argument('--output-dir', type=Path, default=Path('dist'))
     args = parser.parse_args()
     metadata = json.loads((args.source / 'SOURCE.json').read_text())
-    identity = f'crystal-bootstrap-{metadata["bootstrap_version"]}-crystal-{metadata["crystal"]["version"]}-llvm{metadata["llvm_major"]}'
+    # Tags may contain slashes or Unicode; keep the archive a single filename
+    # while retaining the exact tag in SOURCE.json and the GitHub release.
+    version = quote(metadata['bootstrap_version'], safe='')
+    identity = f'crystal-bootstrap-{version}-crystal-{metadata["crystal"]["version"]}-llvm{metadata["llvm_major"]}'
     args.output_dir.mkdir(parents=True, exist_ok=True)
     destination = args.output_dir / (identity + '.zip')
     temporary = destination.with_suffix('.zip.partial')

@@ -6,7 +6,7 @@ Release:        0
 Summary:        Build the Crystal compiler from generated C++ sources
 License:        Apache-2.0 AND MIT AND BSD-3-Clause
 URL:            https://github.com/soupglasses/crystal-bootstrap
-Source0:        %{url}/releases/download/bootstrap-%{bootstrap_version}/crystal-bootstrap-%{bootstrap_version}-crystal-%{version}-llvm20.zip
+Source0:        %{url}/releases/download/%{bootstrap_version}/crystal-bootstrap-%{bootstrap_version}-crystal-%{version}-llvm20.zip
 BuildRequires:  gcc-c++
 BuildRequires:  llvm20-devel
 BuildRequires:  make

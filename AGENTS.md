@@ -19,7 +19,8 @@ crystal-stage1 + upstream source    -> final Crystal
   upstream reference under an identical recipe. Direct cross-version `n-1 -> n`
   equality is not required. Do not equate source-generation determinism with
   final compiler reproducibility or claim arbitrary upstream download hashes.
-- Each date-based release targets one Crystal version in `release.json`. New
+- Any pushed Git tag names a release; its commit selects the Crystal target in
+  `release.json`. Do not validate tag spelling or add a tag prefix. New
   releases may drop the older target. Prefer updating the small adapter over
   maintaining compatibility profiles or a version matrix.
 - GitHub Actions builds are authoritative for released sources. Local generation

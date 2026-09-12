@@ -1,25 +1,33 @@
 # Source releases
 
-Each date-based bootstrap release targets one upstream Crystal version. The
-single [release.json](../release.json) pins that source commit, its shards, the
-maintainer's generator host, and the release LLVM major. A later date can target
-a new Crystal release and drop the old target; no compatibility matrix is required.
-Use a numeric suffix such as `2026.09.12.1` for a second bootstrap of the same date.
+A pushed Git tag creates a release. The tag is its version (for example,
+`2026.09.12`); [release.json](../release.json) **at the tagged commit** selects
+the Crystal source, shards, generator host and LLVM version. Any tag name works.
+Today each release targets Crystal 1.21.0. Later commits can change that target.
 
-## Maintainer workflow
+## Publish
 
-1. Update the pins and adapt the generator/runtime only where the target requires
-   it. Keep source notices current. Run relevant translator checks.
-2. Run `make generate LLVM_CONFIG=llvm-config-20`. Inspect the unpacked output in
-   `build/generated/1.21.0`. The command compares two independent translations,
-   rejects unsupported lowering, and preserves the previous output on failure.
-3. Commit maintained sources, pins and workflow. Generated trees and ZIPs must
-   never enter the published Git history.
-4. Run the **Bootstrap source release** workflow on that commit, or push the tag
-   `bootstrap-<version>`. The workflow generates on a fresh GitHub runner, packages
-   the result and obtains GitHub's artifact attestation. It creates a draft with
-   all assets before publishing. An existing release is never overwritten; use a
-   new version for corrections.
+1. Update the target pins and, when changing Crystal versions, the workflow's
+   display name. Run relevant checks and `make generate LLVM_CONFIG=llvm-config-20`.
+2. Commit and push the maintained sources. Keep generated output out of Git.
+3. Tag that commit and push the tag:
+
+   ```sh
+   git tag 2026.09.12 <commit>
+   git push origin 2026.09.12
+   ```
+
+GitHub runs the workflow from that commit, generates the sources twice, checks
+that both outputs match, and publishes the ZIP, checksums and attestation under
+`/releases/tag/2026.09.12`. The run and release are named
+`2026.09.12 - Crystal 1.21.0`. Publication uses the existing tag; there is no manual
+workflow dispatch, tag prefix, or tag-name validation.
+
+Local generation produces an unpacked tree labelled `dev`; CI supplies the tag
+through `BOOTSTRAP_VERSION`. Tags containing filename separators are escaped in
+archive filenames and retained exactly in `SOURCE.json` and the release.
+
+Use a new tag for subsequent releases.
 
 Enable GitHub immutable releases in repository settings before publication.
 [Immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
@@ -41,7 +49,7 @@ gh attestation verify crystal-bootstrap-2026.09.12-crystal-1.21.0-llvm20.zip \
   --repo soupglasses/crystal-bootstrap \
   --signer-workflow soupglasses/crystal-bootstrap/.github/workflows/source-release.yml
 sha256sum -c SHA256SUMS
-gh release verify bootstrap-2026.09.12 --repo soupglasses/crystal-bootstrap
+gh release verify 2026.09.12 --repo soupglasses/crystal-bootstrap
 ```
 
 Inspect the verified attestation's source commit and workflow against the expected

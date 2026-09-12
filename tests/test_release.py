@@ -59,6 +59,22 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual((link.external_attr >> 16) & 0o170000, 0o120000)
                 self.assertEqual(archive.read(link), b'.')
 
+    def test_tag_with_slash_keeps_its_name_in_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source'
+            source.mkdir()
+            metadata = {'bootstrap_version': 'release/next',
+                        'crystal': {'version': '1.21.0'}, 'llvm_major': 20}
+            (source / 'SOURCE.json').write_text(json.dumps(metadata))
+            subprocess.run([sys.executable, str(ROOT / 'tools/package_source.py'),
+                            str(source), '--output-dir', str(root / 'dist')],
+                           check=True, capture_output=True)
+            archive = root / 'dist/crystal-bootstrap-release%2Fnext-crystal-1.21.0-llvm20.zip'
+            with zipfile.ZipFile(archive) as zipped:
+                name = next(name for name in zipped.namelist() if name.endswith('/SOURCE.json'))
+                self.assertEqual(json.loads(zipped.read(name)), metadata)
+
 
 if __name__ == '__main__':
     unittest.main()

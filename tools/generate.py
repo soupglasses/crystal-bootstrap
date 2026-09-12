@@ -167,7 +167,7 @@ def generate(args, config, work, output):
         shutil.copy2(ROOT / 'packaging/source-README.md', staging / 'README.md')
         shutil.copy2(ROOT / 'LICENSE', staging / 'LICENSE')
         metadata = {
-            'format': 1, 'bootstrap_version': config['version'], 'crystal': target,
+            'format': 1, 'bootstrap_version': os.environ.get('BOOTSTRAP_VERSION', 'dev'), 'crystal': target,
             'shards': config['shards'], 'llvm_major': int(llvm_version.split('.')[0]),
             'generation_llvm_version': llvm_version,
             'snapshot_manifest_sha256': digest(staging / 'snapshot/manifest.json'),

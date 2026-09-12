@@ -1,9 +1,9 @@
-name: Bootstrap source release
+name: Bootstrap Crystal 1.21.0
+run-name: ${{ github.ref_name }} - Crystal 1.21.0
 
 on:
-  workflow_dispatch:
   push:
-    tags: ['bootstrap-*']
+    tags: ['**']
 
 permissions:
   contents: read
@@ -21,21 +21,15 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Read release pin
         id: release
         shell: bash
         run: |
           python3 - <<'PY'
-          import json, os, re
+          import json, os
           config = json.load(open('release.json'))
-          version = config['version']
-          assert re.fullmatch(r'\d{4}\.\d{2}\.\d{2}(?:\.\d+)?', version)
-          tag = 'bootstrap-' + version
-          if os.environ['GITHUB_REF_TYPE'] == 'tag':
-              assert os.environ['GITHUB_REF_NAME'] == tag
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              print('tag=' + tag, file=output)
               print('target=' + config['crystal']['version'], file=output)
               print('llvm=' + str(config['llvm_major']), file=output)
           PY
@@ -51,6 +45,7 @@ jobs:
         run: make check-release
       - name: Generate sources twice and compare
         env:
+          BOOTSTRAP_VERSION: ${{ github.ref_name }}
           LLVM_MAJOR: ${{ steps.release.outputs.llvm }}
         run: make generate LLVM_CONFIG="llvm-config-${LLVM_MAJOR}"
       - name: Package generated sources
@@ -59,13 +54,13 @@ jobs:
         run: python3 tools/package_source.py "build/generated/${TARGET}"
       - name: Attest source archive
         id: attest
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: dist/*.zip
       - name: Publish source release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.release.outputs.tag }}
+          TAG: ${{ github.ref_name }}
           TARGET: ${{ steps.release.outputs.target }}
           BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
@@ -73,11 +68,9 @@ jobs:
           cat > /tmp/release-notes.md <<EOF_NOTES
           Readable C++ bootstrap sources for Crystal ${TARGET}.
 
-          Generated twice with identical output by [GitHub Actions](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) from commit ${GITHUB_SHA}.
-          Includes pinned upstream/shard source, runtime, and an offline stage0 → stage1 → Crystal build driver.
-          This workflow verifies source generation; distribution build services perform and validate the compiler chain.
+          [Build log](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) · [${GITHUB_SHA:0:7}](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})
 
           Verify the downloaded ZIP with \`gh attestation verify <archive.zip> --repo ${GITHUB_REPOSITORY}\` and \`sha256sum -c SHA256SUMS\`.
           EOF_NOTES
-          gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "crystal-bootstrap ${TAG#bootstrap-} · Crystal ${TARGET}" --notes-file /tmp/release-notes.md dist/*.zip dist/SHA256SUMS dist/source.intoto.jsonl
+          gh release create "$TAG" --draft --verify-tag --title "${TAG} - Crystal ${TARGET}" --notes-file /tmp/release-notes.md dist/*.zip dist/SHA256SUMS dist/source.intoto.jsonl
           gh release edit "$TAG" --draft=false
