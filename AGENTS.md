@@ -19,10 +19,10 @@ crystal-stage1 + upstream source    -> final Crystal
   upstream reference under an identical recipe. Direct cross-version `n-1 -> n`
   equality is not required. Do not equate source-generation determinism with
   final compiler reproducibility or claim arbitrary upstream download hashes.
-- Any pushed Git tag names a release; its commit selects the Crystal target in
-  `release.json`. Do not validate tag spelling or add a tag prefix. New
+- Any pushed Git tag names a release; its commit selects the Crystal targets in
+  `release.json`. Derive the CI matrix and release title from that list. Do not validate tag spelling or add a tag prefix. New
   releases may drop the older target. Prefer updating the small adapter over
-  maintaining compatibility profiles or a version matrix.
+  maintaining compatibility profiles or older targets without a purpose.
 - GitHub Actions builds are authoritative for released sources. Local generation
   produces an unpacked tree without packaging or attestations. The release job
   generates, packages and attests source; distributions build the compiler chain.
@@ -64,7 +64,7 @@ crystal-stage1 + upstream source    -> final Crystal
 | `tools/build_source.py`, `tools/bootstrap.py` | Offline release build driver and developer comparison harness. |
 | `tests/fixtures/`, `tests/compiler/`, `tests/runtime/` | Semantic regressions, real compiler components, allocation pressure. |
 | `bootstrap/` | Source notices and historical development receipts. |
-| `release.json`, `.github/workflows/`, `packaging/` | One target pin, GitHub source releases, and distribution examples. |
+| `release.json`, `.github/workflows/`, `packaging/` | Target pins, GitHub source releases, and distribution examples. |
 
 Consult [lowering](docs/lowering.md) and [runtime](docs/runtime.md) before changing
 representations. Use [the update procedure](docs/plan.md) for full publication and

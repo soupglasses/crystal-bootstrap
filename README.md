@@ -3,7 +3,7 @@
 Bootstrap upstream Crystal from readable generated C++11, without installing a
 historical Crystal compiler. **Release `2026.09.12` targets Crystal `1.21.0` on
 Linux x86-64 with LLVM 20.** A Git tag names each bootstrap release; the files at that commit select its
-Crystal target. A later release can replace the target without retaining
+Crystal targets. A later release can replace the target without retaining
 compatibility branches.
 
 ```text
@@ -37,6 +37,7 @@ official Crystal host used **only for generation**. To use an existing host:
 make generate CRYSTAL=/path/to/crystal LLVM_CONFIG=/path/to/llvm-config
 ```
 
+Use `TARGET=1.21.0` to select an entry in `release.json`; the first is the default.
 Output goes to `build/generated/1.21.0/`: generated C++, upstream/shard source,
 notices and an offline build driver. Generation runs twice and requires identical
 bytes with no unsupported stubs. Rerunning the command replaces the directory

@@ -4,8 +4,8 @@ LLVM_CONFIG ?= llvm-config
 CXX ?= g++
 NATIVE_OPTIMIZE ?= 0
 PYTHON ?= python3
-TARGET_VERSION := $(shell $(PYTHON) -c 'import json; print(json.load(open("release.json"))["crystal"]["version"])')
-OUTPUT ?= build/generated/$(TARGET_VERSION)
+TARGET ?= $(shell $(PYTHON) -c 'import json; print(json.load(open("release.json"))["targets"][0]["version"])')
+OUTPUT ?= build/generated/$(TARGET)
 SNAPSHOT ?= $(OUTPUT)/snapshot
 BOOTSTRAP_HOST ?= $(abspath build/reference-crystal)
 
@@ -97,7 +97,7 @@ check-bootstrap:
 
 .PHONY: generate check-release
 generate:
-	$(PYTHON) -u tools/generate.py $(if $(filter command line environment,$(origin CRYSTAL)),--crystal "$(CRYSTAL)") --llvm-config "$(LLVM_CONFIG)" --output-dir "$(OUTPUT)"
+	$(PYTHON) -u tools/generate.py --target "$(TARGET)" $(if $(filter command line environment,$(origin CRYSTAL)),--crystal "$(CRYSTAL)") --llvm-config "$(LLVM_CONFIG)" --output-dir "$(OUTPUT)"
 
 check-release:
 	$(PYTHON) -m unittest discover -s tests -p 'test_release.py'

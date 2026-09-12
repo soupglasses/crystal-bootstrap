@@ -95,13 +95,17 @@ def publish(staging, output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--target', help='Crystal version from release.json; default: first target')
     parser.add_argument('--crystal', default=os.environ.get('CRYSTAL'),
                         help='generator host; otherwise download the pinned official host')
     parser.add_argument('--llvm-config', default=os.environ.get('LLVM_CONFIG', 'llvm-config'))
     parser.add_argument('--output-dir', type=Path, help='default: build/generated/<Crystal version>')
     args = parser.parse_args()
     config = json.loads((ROOT / 'release.json').read_text())
-    target = config['crystal']
+    target = next((target for target in config['targets']
+                   if args.target is None or target['version'] == args.target), None)
+    if target is None:
+        parser.error(f'no Crystal {args.target} target in release.json')
     output = (args.output_dir or ROOT / 'build/generated' / target['version']).absolute()
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.is_symlink():
@@ -113,11 +117,10 @@ def main():
     with (work / '.lock').open('a') as lock, output.with_name(output.name + '.lock').open('a') as destination_lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         fcntl.flock(destination_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        generate(args, config, work, output)
+        generate(args, config, target, work, output)
 
 
-def generate(args, config, work, output):
-    target = config['crystal']
+def generate(args, config, target, work, output):
     llvm_config = str(Path(shutil.which(args.llvm_config) or args.llvm_config).resolve())
     llvm_version = subprocess.check_output([llvm_config, '--version'], text=True).strip()
     downloads = work / 'downloads'

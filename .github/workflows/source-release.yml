@@ -1,5 +1,5 @@
-name: Bootstrap Crystal 1.21.0
-run-name: ${{ github.ref_name }} - Crystal 1.21.0
+name: Bootstrap source release
+run-name: ${{ github.ref_name }}
 
 on:
   push:
@@ -13,29 +13,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  source:
+  prepare:
+    name: Read Crystal targets
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+      versions: ${{ steps.targets.outputs.versions }}
+      llvm: ${{ steps.targets.outputs.llvm }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Read release pin
-        id: release
-        shell: bash
+      - name: Read release.json
+        id: targets
         run: |
-          python3 - <<'PY'
+          python3 - <<'PYTHON'
           import json, os
           config = json.load(open('release.json'))
+          versions = [target['version'] for target in config['targets']]
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              print('target=' + config['crystal']['version'], file=output)
+              print('matrix=' + json.dumps({'crystal': versions}), file=output)
+              print('versions=' + ', '.join(versions), file=output)
               print('llvm=' + str(config['llvm_major']), file=output)
-          PY
+          PYTHON
+
+  source:
+    name: Crystal ${{ matrix.crystal }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install generation dependencies
         env:
-          LLVM_MAJOR: ${{ steps.release.outputs.llvm }}
+          LLVM_MAJOR: ${{ needs.prepare.outputs.llvm }}
         run: |
           curl --fail --silent --show-error https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor | sudo tee /usr/share/keyrings/apt-llvm.gpg > /dev/null
           echo "deb [signed-by=/usr/share/keyrings/apt-llvm.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-${LLVM_MAJOR} main" | sudo tee /etc/apt/sources.list.d/llvm.list
@@ -45,13 +57,40 @@ jobs:
         run: make check-release
       - name: Generate sources twice and compare
         env:
+          CRYSTAL_VERSION: ${{ matrix.crystal }}
           BOOTSTRAP_VERSION: ${{ github.ref_name }}
-          LLVM_MAJOR: ${{ steps.release.outputs.llvm }}
-        run: make generate LLVM_CONFIG="llvm-config-${LLVM_MAJOR}"
+          LLVM_MAJOR: ${{ needs.prepare.outputs.llvm }}
+        run: make generate TARGET="${CRYSTAL_VERSION}" LLVM_CONFIG="llvm-config-${LLVM_MAJOR}"
       - name: Package generated sources
         env:
-          TARGET: ${{ steps.release.outputs.target }}
+          TARGET: ${{ matrix.crystal }}
         run: python3 tools/package_source.py "build/generated/${TARGET}"
+      - name: Upload source ZIP
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: crystal-${{ matrix.crystal }}
+          path: dist/*.zip
+          if-no-files-found: error
+          compression-level: 0
+
+  release:
+    name: ${{ github.ref_name }} - Crystal ${{ needs.prepare.outputs.versions }}
+    needs: [prepare, source]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Collect source ZIPs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: crystal-*
+          path: dist
+          merge-multiple: true
+      - name: Write checksums
+        working-directory: dist
+        run: sha256sum *.zip > SHA256SUMS
       - name: Attest source archive
         id: attest
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
@@ -60,8 +99,9 @@ jobs:
       - name: Publish source release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
-          TARGET: ${{ steps.release.outputs.target }}
+          TARGET: ${{ needs.prepare.outputs.versions }}
           BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
           cp "$BUNDLE" dist/source.intoto.jsonl

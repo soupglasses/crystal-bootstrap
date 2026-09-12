@@ -3,25 +3,29 @@
 A pushed Git tag creates a release. The tag is its version (for example,
 `2026.09.12`); [release.json](../release.json) **at the tagged commit** selects
 the Crystal source, shards, generator host and LLVM version. Any tag name works.
-Today each release targets Crystal 1.21.0. Later commits can change that target.
+The `targets` list currently contains only Crystal 1.21.0. Later commits can
+replace it or add targets; versions are not repeated in the workflow.
 
 ## Publish
 
-1. Update the target pins and, when changing Crystal versions, the workflow's
-   display name. Run relevant checks and `make generate LLVM_CONFIG=llvm-config-20`.
+1. Update the target pins in `release.json`. Run relevant checks and
+   `make generate LLVM_CONFIG=llvm-config-20` (`TARGET=1.21.0` selects an entry).
 2. Commit and push the maintained sources. Keep generated output out of Git.
 3. Tag that commit and push the tag:
 
    ```sh
-   git tag 2026.09.12 <commit>
+   git tag -m "2026.09.12" 2026.09.12 <commit>
    git push origin 2026.09.12
    ```
 
-GitHub runs the workflow from that commit, generates the sources twice, checks
-that both outputs match, and publishes the ZIP, checksums and attestation under
-`/releases/tag/2026.09.12`. The run and release are named
-`2026.09.12 - Crystal 1.21.0`. Publication uses the existing tag; there is no manual
-workflow dispatch, tag prefix, or tag-name validation.
+GitHub reads the tagged configuration into a build matrix. Each target generates
+its sources twice and requires matching output. A final job collects the ZIPs,
+checksums and attests them, and publishes `/releases/tag/2026.09.12` with the title
+`2026.09.12 - Crystal 1.21.0` (or a comma-separated version list for several targets).
+The run shows the tag, individual jobs show their Crystal version, and the final
+job shows the release title. GitHub resolves the run name before reading files.
+Publication uses the existing tag; there is no manual dispatch, tag prefix or
+tag-name validation.
 
 Local generation produces an unpacked tree labelled `dev`; CI supplies the tag
 through `BOOTSTRAP_VERSION`. Tags containing filename separators are escaped in
