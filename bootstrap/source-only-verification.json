@@ -1,0 +1,38 @@
+{
+  "builds": [
+    {
+      "compiler_sha256": "6d552deaf9afa950b050d67270476fc09686c17bfa9c65e9cf72602e6c789f74",
+      "name": "stage1",
+      "peak_rss_kib": 6124320,
+      "sha256": "7f53600ac0a1e84cfbc0c68d761c601d5419daea0e9ff5281fbbbc0a9f97d8f8",
+      "version": "Crystal 1.22.0-dev [f4acc09db3edbc51cf526ba97808fbaa3e857ea9] (1970-01-01)\n\nThe compiler was not built in release mode.\n\nLLVM: 22.1.8\nDefault target: x86_64-pc-linux-gnu",
+      "wall_seconds": 472.704
+    },
+    {
+      "compiler_sha256": "7f53600ac0a1e84cfbc0c68d761c601d5419daea0e9ff5281fbbbc0a9f97d8f8",
+      "name": "crystal",
+      "peak_rss_kib": 4057256,
+      "sha256": "487b56091b4ee991da5ea6186e4f75c5dc47c60982402a0f1137a731e10a8d21",
+      "version": "Crystal 1.22.0-dev [f4acc09db3edbc51cf526ba97808fbaa3e857ea9] (1970-01-01)\n\nThe compiler was not built in release mode.\n\nLLVM: 22.1.8\nDefault target: x86_64-pc-linux-gnu",
+      "wall_seconds": 65.747
+    }
+  ],
+  "configuration": {
+    "CRYSTAL_CONFIG_BUILD_COMMIT": "f4acc09db3edbc51cf526ba97808fbaa3e857ea9",
+    "CRYSTAL_CONFIG_TARGET": "x86_64-pc-linux-gnu",
+    "LC_ALL": "C",
+    "SOURCE_DATE_EPOCH": "0",
+    "TZ": "UTC"
+  },
+  "crystal_path_guard": {
+    "exit_status": 99,
+    "invoked": false
+  },
+  "format": 1,
+  "path_policy": "Separate build paths from the trusted comparison. Output hashes are not compared across these paths.",
+  "snapshot_manifest_sha256": "f6f4fde07b24b00a3e745f51fce63a54c61db392940c3a82c3760e16dd017e68",
+  "source_chain_built": true,
+  "source_revision": "f4acc09db3edbc51cf526ba97808fbaa3e857ea9",
+  "stage0_stack_bytes": 536870912,
+  "stage0_verified": false
+}

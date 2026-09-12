@@ -1,0 +1,83 @@
+name: Bootstrap source release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['bootstrap-*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-release
+  cancel-in-progress: false
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Read release pin
+        id: release
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          config = json.load(open('release.json'))
+          version = config['version']
+          assert re.fullmatch(r'\d{4}\.\d{2}\.\d{2}(?:\.\d+)?', version)
+          tag = 'bootstrap-' + version
+          if os.environ['GITHUB_REF_TYPE'] == 'tag':
+              assert os.environ['GITHUB_REF_NAME'] == tag
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              print('tag=' + tag, file=output)
+              print('target=' + config['crystal']['version'], file=output)
+              print('llvm=' + str(config['llvm_major']), file=output)
+          PY
+      - name: Install generation dependencies
+        env:
+          LLVM_MAJOR: ${{ steps.release.outputs.llvm }}
+        run: |
+          curl --fail --silent --show-error https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor | sudo tee /usr/share/keyrings/apt-llvm.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/apt-llvm.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-${LLVM_MAJOR} main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          sudo apt-get update
+          sudo apt-get install -y "llvm-${LLVM_MAJOR}-dev" libgc-dev libpcre2-dev libutf8proc-dev pkg-config
+      - name: Check release tools
+        run: make check-release
+      - name: Generate sources twice and compare
+        env:
+          LLVM_MAJOR: ${{ steps.release.outputs.llvm }}
+        run: make generate LLVM_CONFIG="llvm-config-${LLVM_MAJOR}"
+      - name: Package generated sources
+        env:
+          TARGET: ${{ steps.release.outputs.target }}
+        run: python3 tools/package_source.py "build/generated/${TARGET}"
+      - name: Attest source archive
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: dist/*.zip
+      - name: Publish source release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          TARGET: ${{ steps.release.outputs.target }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          cp "$BUNDLE" dist/source.intoto.jsonl
+          cat > /tmp/release-notes.md <<EOF_NOTES
+          Readable C++ bootstrap sources for Crystal ${TARGET}.
+
+          Generated twice with identical output by [GitHub Actions](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) from commit ${GITHUB_SHA}.
+          Includes pinned upstream/shard source, runtime, and an offline stage0 → stage1 → Crystal build driver.
+          This workflow verifies source generation; distribution build services perform and validate the compiler chain.
+
+          Verify the downloaded ZIP with \`gh attestation verify <archive.zip> --repo ${GITHUB_REPOSITORY}\` and \`sha256sum -c SHA256SUMS\`.
+          EOF_NOTES
+          gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "crystal-bootstrap ${TAG#bootstrap-} · Crystal ${TARGET}" --notes-file /tmp/release-notes.md dist/*.zip dist/SHA256SUMS dist/source.intoto.jsonl
+          gh release edit "$TAG" --draft=false

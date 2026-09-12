@@ -1,0 +1,56 @@
+{
+  "builds": [
+    {
+      "peak_rss_kib": 4036244,
+      "sha256": "cf379382351e1bd4b412fb82525ecc584e8df1b5da0b50b151e091877d8842c7",
+      "wall_seconds": 59.142
+    },
+    {
+      "peak_rss_kib": 4248284,
+      "sha256": "cf379382351e1bd4b412fb82525ecc584e8df1b5da0b50b151e091877d8842c7",
+      "wall_seconds": 57.13
+    }
+  ],
+  "codegen_isolation": {
+    "compiler_sha256": "3a83da688ad77b02187a69d4ce2c660457d3b531b220a35da580fb6d4d4c021c",
+    "compiler_source_revision": "f4acc09db3edbc51cf526ba97808fbaa3e857ea9",
+    "matches_n_minus_one": false,
+    "reverted_upstream_commit": "43ae759b4b8c140851f177eebb338fa5b6d08243",
+    "sha256": "3a32d8bb97c0a16091bf154c3dd4c0fb70c4840a030233c0279f4abafe6d57a3"
+  },
+  "compiler_flags": [
+    "-Dwithout_interpreter",
+    "-Dwithout_libxml2",
+    "-Dwithout_openssl",
+    "-Dwithout_zlib",
+    "-Dstrict_multi_assign",
+    "-Dpreview_overload_order",
+    "-Dwithout_mt",
+    "--no-debug",
+    "--threads",
+    "1"
+  ],
+  "compiler_sha256": "04aa9807c3088399bdad3b8ff2a0910ac03b60b535bd484c368a0ce5a480d71b",
+  "compiler_version": "Crystal 1.21.0 [83a82b58518b3c73025ca9d29cfe2cb6e6f5d20e] (1970-01-01)\n\nThe compiler was not built in release mode.\n\nLLVM: 22.1.8\nDefault target: x86_64-pc-linux-gnu",
+  "configuration": {
+    "CRYSTAL_CONFIG_BUILD_COMMIT": "f4acc09db3edbc51cf526ba97808fbaa3e857ea9",
+    "CRYSTAL_CONFIG_TARGET": "x86_64-pc-linux-gnu",
+    "LC_ALL": "C",
+    "SOURCE_DATE_EPOCH": "0",
+    "TZ": "UTC"
+  },
+  "format": 1,
+  "interpretation": "Repeated direct n-1 builds agree, but differ from the bootstrap final. One self-build of that reference equals the bootstrap final. Reverting the identified codegen commit alone did not restore the direct n-1 hash; the precise differences remain unisolated.",
+  "matches_final": false,
+  "path_policy": "Identical absolute source, output and cleared cache paths for every comparison.",
+  "reference_sha256": "00e4119a5c627039603883ddee40d456d830effb2b0554b0fb0a071fb7213737",
+  "self_build": {
+    "compiler_sha256": "cf379382351e1bd4b412fb82525ecc584e8df1b5da0b50b151e091877d8842c7",
+    "peak_rss_kib": 4043192,
+    "sha256": "00e4119a5c627039603883ddee40d456d830effb2b0554b0fb0a071fb7213737",
+    "wall_seconds": 59.879
+  },
+  "self_matches_final": true,
+  "snapshot_manifest_sha256": "f6f4fde07b24b00a3e745f51fce63a54c61db392940c3a82c3760e16dd017e68",
+  "source_revision": "f4acc09db3edbc51cf526ba97808fbaa3e857ea9"
+}

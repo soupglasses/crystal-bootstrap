@@ -1,0 +1,27 @@
+{
+  "version": "2026.09.12",
+  "crystal": {
+    "version": "1.21.0",
+    "revision": "57cf7da5094db6c5d3c058c6d054a757b5ced19e"
+  },
+  "llvm_major": 20,
+  "generator_host": {
+    "version": "1.21.0",
+    "url": "https://github.com/crystal-lang/crystal/releases/download/1.21.0/crystal-1.21.0-1-linux-x86_64.tar.gz",
+    "sha256": "744561ee3cee1b06d106cf9ae99b8064b4e017518ac414d6dd23cfafe36560c9"
+  },
+  "shards": {
+    "markd": {
+      "repository": "icyleaf/markd",
+      "revision": "d61dd52d40e659b53cb78712a7b1190cfdb9bc66"
+    },
+    "reply": {
+      "repository": "i3oris/reply",
+      "revision": "13f7eba083f138dd063c68b859c8e315f44fb523"
+    },
+    "sanitize": {
+      "repository": "straight-shoota/sanitize",
+      "revision": "75c141b619c77956e88f557149566cd28876398b"
+    }
+  }
+}
