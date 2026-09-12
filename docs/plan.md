@@ -53,6 +53,7 @@ release. Before submitting sources to OBS or another build service:
 ```sh
 gh attestation verify crystal-bootstrap-2026.09.12-crystal-1.21.0-llvm20.zip \
   --repo soupglasses/crystal-bootstrap \
+  --source-ref refs/tags/2026.09.12 \
   --signer-workflow soupglasses/crystal-bootstrap/.github/workflows/source-release.yml
 sha256sum -c SHA256SUMS
 gh release verify 2026.09.12 --repo soupglasses/crystal-bootstrap
