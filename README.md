@@ -10,29 +10,27 @@ library code. We maintain the C++ lowering and runtime adapters. The generated s
 the next stage.
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph maintainer["Maintainer / GitHub Actions"]
+        direction LR
         host["Existing Crystal compiler"] -->|builds and runs| generator["crystal-to-cpp"]
         upstream["Pinned Crystal source and shards"] --> generator
         generator -->|upstream frontend| typed["Typed program"]
         typed -->|C++ lowering| cpp["C++11 snapshot and runtime"]
-        cpp -->|compare two generations| tree["Unpacked source tree"]
-        upstream --> tree
-        tree -->|CI packages and attests| archive["Source ZIP"]
+        cpp -->|compare two generations| generated["Unpacked source tree"]
+        upstream --> generated
+        generated -->|CI packages and attests| archive["Source ZIP"]
     end
-```
 
----
+    maintainer -->|Download and verify the source ZIP| builder
 
-```mermaid
-flowchart LR
     subgraph builder["Distribution builder"]
-        archive["Source ZIP"] -->|extract| tree["Source tree"]
-        tree -->|GCC or Clang and native libraries| stage0["crystal-stage0"]
+        direction LR
+        extracted["Extracted source tree"] -->|GCC or Clang and native libraries| stage0["crystal-stage0"]
         stage0 -->|compile with LLVM| stage1["crystal-stage1"]
         stage1 -->|rebuild with LLVM| final["Final Crystal"]
-        tree -->|upstream source and shards| stage1
-        tree -->|same upstream source| final
+        extracted -->|upstream source and shards| stage1
+        extracted -->|same upstream source| final
     end
 ```
 
